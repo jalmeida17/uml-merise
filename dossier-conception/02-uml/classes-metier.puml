@@ -1,0 +1,209 @@
+@startuml classes-metier
+' Diagramme de classes métier — CoWork'In (atelier 1.4)
+' Niveau conceptuel : aucun identifiant technique, aucune clé étrangère.
+' Les opérations présentes sont celles justifiées par un diagramme de séquence (atelier 2.2).
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+hide empty members
+
+' =================== Lieux et espaces ===================
+class Site {
+  nom : String
+  ville : String
+  adresse : Adresse
+  heureOuverture : Heure
+  heureFermeture : Heure
+}
+
+abstract class Espace {
+  code : String
+  statut : StatutEspace
+  estDisponible(creneau : Creneau) : Boolean
+}
+
+class Poste {
+  type : TypePoste
+}
+
+class SalleReunion {
+  capacite : Integer
+  equipements : String [*]
+}
+
+Espace <|-- Poste
+Espace <|-- SalleReunion
+Site "1" -- "0..*" Espace : héberge >
+
+' =================== Personnes et sociétés ===================
+class Utilisateur {
+  nom : String
+  prenom : String
+  email : Email
+  telephone : String [0..1]
+  roles : Role [1..*]
+  actif : Boolean
+}
+
+class Societe {
+  raisonSociale : String
+  siret : String
+  adresseFacturation : Adresse
+  emailFacturation : Email
+}
+
+Societe "0..1" -- "0..*" Utilisateur : emploie >
+Utilisateur "0..*" -- "0..*" Site : est affecté à >
+
+' =================== Offre commerciale ===================
+class Formule {
+  code : String
+  libelle : String
+  quotaSalleH : Integer
+  actif : Boolean
+}
+
+class Tarif {
+  prestation : Prestation
+  prixHT : Montant
+  dateDebut : Date
+  dateFin : Date [0..1]
+}
+
+class Abonnement {
+  dateDebut : Date
+  dateFin : Date [0..1]
+  estActif(date : Date) : Boolean
+  quotaRestant(mois : Mois) : Duree
+}
+
+Formule "0..1" -- "0..*" Tarif : est tarifée par >
+Utilisateur "1" -- "0..*" Abonnement : souscrit >
+Abonnement "0..*" -- "1" Formule : relève de >
+
+' =================== Réservation ===================
+class Reservation {
+  debut : DateHeure
+  fin : DateHeure
+  statut : StatutReservation
+  montantDu : Montant
+  creeLe : DateHeure
+  annuleeLe : DateHeure [0..1]
+  motifAnnulation : String [0..1]
+  duree() : Duree
+  estAnnulable(instant : DateHeure) : Boolean
+  annuler(instant : DateHeure, motif : String)
+}
+
+class PolitiqueAnnulation <<service>> {
+  tauxRemboursement(r : Reservation, instant : DateHeure) : Pourcentage
+}
+
+Utilisateur "1" -- "0..*" Reservation : effectue >
+Reservation "0..*" -- "1" Espace : porte sur >
+PolitiqueAnnulation ..> Reservation : évalue
+
+' =================== Ateliers ===================
+class Atelier {
+  titre : String
+  description : String
+  debut : DateHeure
+  fin : DateHeure
+  placesMax : Integer
+  statut : StatutAtelier
+  placesRestantes() : Integer
+}
+
+class Inscription {
+  dateInscription : DateHeure
+  statut : StatutInscription
+}
+
+Utilisateur "1" -- "0..*" Atelier : anime >
+SalleReunion "1" -- "0..*" Atelier : accueille >
+Utilisateur "0..*" -- "0..*" Atelier : s'inscrit à >
+(Utilisateur, Atelier) .. Inscription
+
+' =================== Facturation ===================
+class Facture {
+  numero : String
+  periode : Mois
+  dateEmission : Date
+  statut : StatutFacture
+  total() : Montant
+}
+
+class LigneFacture {
+  numLigne : Integer
+  libelle : String
+  quantite : Decimal
+  prixUnitaire : Montant
+  montant() : Montant
+}
+
+Facture *-- "1..*" LigneFacture : compose
+Utilisateur "0..1" -- "0..*" Facture : est adressée à >
+Societe "0..1" -- "0..*" Facture : est adressée à >
+Reservation "0..1" -- "0..1" LigneFacture : est facturée par >
+Utilisateur "1" -- "0..*" LigneFacture : bénéficie de >
+
+note right of Facture
+  {xor} : une facture est adressée
+  soit à un utilisateur, soit à une
+  société — jamais les deux, jamais aucun.
+  Pour une société, une ligne par
+  prestation et par collaborateur.
+end note
+
+note bottom of LigneFacture
+  libelle et prixUnitaire sont RECOPIÉS
+  au moment de l'émission : une facture
+  émise ne bouge plus (historisation,
+  pas redondance).
+end note
+
+' =================== Énumérations ===================
+enum StatutReservation {
+  EN_ATTENTE
+  CONFIRMEE
+  ANNULEE
+}
+enum StatutEspace {
+  DISPONIBLE
+  MAINTENANCE
+  RETIRE
+}
+enum TypePoste {
+  FLEX
+  DEDIE
+}
+enum StatutAtelier {
+  BROUILLON
+  PUBLIE
+  ANNULE
+  TERMINE
+}
+enum StatutInscription {
+  CONFIRMEE
+  ANNULEE
+}
+enum StatutFacture {
+  BROUILLON
+  EMISE
+  PAYEE
+  ANNULEE
+}
+enum Prestation {
+  ABONNEMENT_MENSUEL
+  POSTE_HEURE
+  POSTE_JOUR
+  SALLE_HEURE
+}
+enum Role {
+  COWORKER
+  REFERENT_SOCIETE
+  HOTE_ACCUEIL
+  GERANT
+  ANIMATEUR
+}
+
+@enduml

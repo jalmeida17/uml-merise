@@ -1,0 +1,55 @@
+@startuml sequence-systeme
+' Séquence SYSTÈME (boîte noire) — UC-04 Annuler une réservation (atelier 2.1)
+' Le système est un bloc unique : ce diagramme reste vrai quelle que soit l'architecture interne.
+autonumber
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+
+actor "Coworker (A1)" as CW
+participant "Système CoWork'In" as SYS
+participant "Prestataire de paiement (A6)\n<<system>>" as PSP
+participant "Service d'e-mailing (A7)\n<<system>>" as MAIL
+
+CW -> SYS : demander l'annulation(réservation)
+activate SYS
+SYS -> SYS : vérifier que la réservation appartient\nau demandeur et n'a pas commencé
+
+break réservation déjà commencée ou terminée — E1
+  SYS --> CW : refus : annulation impossible,\ns'adresser à l'accueil
+end
+
+SYS -> SYS : appliquer la politique d'annulation (RG-10)\nselon le délai restant avant le début
+SYS --> CW : conséquences : montant remboursé,\nmontant conservé, heures de quota recréditées
+
+CW -> SYS : confirmer l'annulation
+
+SYS -> SYS : passer la réservation à ANNULEE (horodatée),\nlibérer le créneau, recréditer le quota (RG-04, RG-07)
+
+alt plus de 24 h avant le début — remboursement total
+  SYS -> PSP : rembourser(transaction, montant intégral)
+  activate PSP
+  PSP --> SYS : remboursement accepté (référence)
+  deactivate PSP
+else entre 24 h et 2 h — remboursement partiel
+  SYS -> PSP : rembourser(transaction, 50 % du montant)
+  activate PSP
+  PSP --> SYS : remboursement accepté (référence)
+  deactivate PSP
+else moins de 2 h, ou aucun montant encaissé — hors délai
+  SYS -> SYS : conserver le montant dû :\nil sera facturé en fin de mois
+end
+
+note over PSP
+  E2 — prestataire injoignable :
+  l'annulation reste acquise ; la demande
+  de remboursement est mise en file
+  et rejouée par le planificateur (A8).
+end note
+
+SYS ->> MAIL : envoyer la confirmation d'annulation
+note right of MAIL : asynchrone — on n'attend pas l'e-mail
+
+SYS --> CW : réservation annulée\n(détail du remboursement)
+deactivate SYS
+
+@enduml

@@ -1,0 +1,41 @@
+SITE: idSite, nom, ville, adresse, heureOuverture, heureFermeture
+HEBERGER, 1N SITE, 11 ESPACE
+ESPACE: idEspace, code, typeEspace, statut
+/XT\ ESPACE <= POSTE, SALLE_REUNION
+POSTE: typePoste
+SALLE_REUNION: capacite
+DISPOSER DE, 0N SALLE_REUNION, 0N EQUIPEMENT
+EQUIPEMENT: codeEquipement, libelle
+
+SOCIETE: idSociete, raisonSociale, siret, adresseFacturation, emailFacturation
+EMPLOYER, 0N SOCIETE, 01 UTILISATEUR
+UTILISATEUR: idUtilisateur, nom, prenom, email, telephone, actif, creeLe
+EXERCER, 1N UTILISATEUR, 0N ROLE
+ROLE: codeRole, libelle
+AFFECTER, 0N UTILISATEUR, 0N SITE
+
+FORMULE: codeFormule, libelle, quotaSalleH, actif
+TARIFER, 0N FORMULE, 01 TARIF
+TARIF: idTarif, prestation, prixHT, dateDebut, dateFin
+SOUSCRIRE, 0N UTILISATEUR, 11 ABONNEMENT
+ABONNEMENT: idAbonnement, dateDebut, dateFin
+RELEVER DE, 11 ABONNEMENT, 0N FORMULE
+
+EFFECTUER, 0N UTILISATEUR, 11 RESERVATION
+RESERVATION: idReservation, debut, fin, statut, montantDu, creeLe, annuleeLe, motifAnnulation
+PORTER SUR, 11 RESERVATION, 0N ESPACE
+REMBOURSER, 0N RESERVATION, 11 REMBOURSEMENT
+REMBOURSEMENT: idRemboursement, montant, statut, referencePsp, demandeLe, effectueLe
+
+ANIMER, 0N UTILISATEUR, 11 ATELIER
+ATELIER: idAtelier, titre, description, debut, fin, placesMax, statut
+ACCUEILLIR, 0N SALLE_REUNION, 11 ATELIER
+S'INSCRIRE, 0N UTILISATEUR, 0N ATELIER: dateInscription, statut
+
+ADRESSER A U, 01 FACTURE, 0N UTILISATEUR
+ADRESSER A S, 01 FACTURE, 0N SOCIETE
+FACTURE: idFacture, numero, periode, dateEmission, statut
+COMPOSER, 1N FACTURE, _11 LIGNE_FACTURE
+LIGNE_FACTURE: numLigne, libelle, quantite, unite, prixUnitaire
+FACTURER, 01 LIGNE_FACTURE, 01 RESERVATION
+BENEFICIER, 11 LIGNE_FACTURE, 0N UTILISATEUR

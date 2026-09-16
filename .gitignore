@@ -1,0 +1,10 @@
+# Système
+Thumbs.db
+.DS_Store
+
+# Éditeurs
+.vscode/
+.idea/
+
+# Rendus temporaires (les exports SVG commités sont dans 02-uml/export/)
+*.tmp

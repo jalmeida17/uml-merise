@@ -1,0 +1,80 @@
+@startuml sequence-detaillee
+' Séquence DÉTAILLÉE (boîte blanche) — UC-04 Annuler une réservation (atelier 2.2)
+' Répartition des responsabilités entre objets internes. Durée de vie courte : à régénérer au refactoring.
+autonumber
+skinparam shadowing false
+
+participant ":ReservationController" as CTRL <<présentation>>
+participant ":ReservationService" as SVC <<métier>>
+participant ":ReservationRepository" as REPO <<données>>
+participant "r :Reservation" as RES <<entité>>
+participant ":PolitiqueAnnulation" as POL <<métier>>
+participant ":PasserellePaiement" as PAY <<port>>
+participant ":RemboursementRepository" as RREPO <<données>>
+participant ":NotificationService" as NOTIF <<métier>>
+
+CTRL -> SVC : annuler(cmd : AnnulationCommand)
+activate SVC
+note right of CTRL : cmd = { idReservation,\nidDemandeur, motif? }
+
+group transaction
+  SVC -> REPO : chargerPourMiseAJour(idReservation)
+  activate REPO
+  REPO --> SVC : r
+  deactivate REPO
+  note right of REPO : SELECT … FOR UPDATE :\nverrou de la ligne
+
+  SVC -> SVC : verifierAutorisation(r, idDemandeur)
+  break demandeur ni propriétaire, ni hôte du site, ni gérant
+    SVC --> CTRL : AccesInterditException
+    CTRL -> CTRL : 403 Forbidden
+  end
+
+  SVC -> RES : estAnnulable(maintenant)
+  activate RES
+  RES --> SVC : false si statut = ANNULEE\nou debut <= maintenant
+  deactivate RES
+  break déjà annulée — E3 : idempotence
+    SVC --> CTRL : AnnulationResultDTO(dejaAnnulee = true)
+    CTRL -> CTRL : 200 OK, aucun second remboursement
+  end
+  break déjà commencée — E1
+    SVC --> CTRL : ReservationNonAnnulableException
+    CTRL -> CTRL : 409 Conflict
+  end
+
+  SVC -> POL : tauxRemboursement(r, maintenant)
+  activate POL
+  POL --> SVC : 100 % | 50 % | 0 %
+  deactivate POL
+
+  SVC -> RES : annuler(maintenant, motif)
+  activate RES
+  RES -> RES : statut = ANNULEE\nannuleeLe = maintenant
+  deactivate RES
+
+  SVC -> REPO : enregistrer(r)
+  activate REPO
+  REPO --> SVC : r
+  deactivate REPO
+end
+
+alt taux > 0 et montant encaissé > 0
+  SVC -> PAY : rembourser(refTransaction, montant × taux)
+  activate PAY
+  PAY --> SVC : RemboursementRef | PasserelleIndisponible
+  deactivate PAY
+  SVC -> RREPO : enregistrer(remboursement, statut EFFECTUE ou EN_ERREUR)
+  note right of RREPO : EN_ERREUR est rejoué\npar le planificateur (E2)
+else taux = 0 ou rien encaissé
+  SVC -> SVC : rien à rembourser
+end
+
+SVC ->> NOTIF : publier(ReservationAnnulee)
+note right of NOTIF : asynchrone : file d'événements,\nle service envoie l'e-mail
+
+SVC --> CTRL : AnnulationResultDTO
+deactivate SVC
+CTRL -> CTRL : 200 OK
+
+@enduml

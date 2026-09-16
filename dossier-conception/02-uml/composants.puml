@@ -1,0 +1,76 @@
+@startuml composants
+' Diagramme de composants — CoWork'In (atelier 2.3)
+' Règle de dépendance : les flèches descendent toujours vers le métier puis vers les données, jamais l'inverse.
+' Chaque flèche pointillée est une dépendance, étiquetée par l'INTERFACE REQUISE qu'elle traverse ;
+' le composant pointé FOURNIT cette interface (détail dans composants.md, section 3.2).
+top to bottom direction
+skinparam componentStyle uml2
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam nodesep 30
+skinparam ranksep 50
+
+package "Couche présentation" {
+  [Web Coworker\n(réservation, ateliers, factures)] as UIC
+  [Back-office\n(accueil, gérant, animateur)] as UIB
+  [API REST\n(contrôleurs, DTO, validation de format)] as API
+}
+
+package "Couche métier" {
+  [Compte & habilitations] as CPT
+  [Réservation] as RES
+  [Ateliers] as ATL
+  [Facturation] as FAC
+  [Tarification] as TAR
+  [Passerelle paiement\n(port IPaiement, adaptateur PSP)] as PAY
+  [Notification\n(consomme les événements)] as NOT
+}
+
+package "Couche données" {
+  [Dépôts\nReservation-, Facture-, Atelier-, UtilisateurRepository…\n(implémentent des interfaces définies par le métier)] as REPO
+  database "PostgreSQL" as DB
+}
+
+package "Systèmes externes" {
+  [Prestataire de paiement (A6)] as PSP
+  [Service d'e-mailing (A7)] as MAIL
+}
+
+' ---------- Présentation → métier ----------
+UIC ..> API
+UIB ..> API
+API ..> RES : IReservation
+API ..> ATL : IAteliers
+API ..> FAC : IFactures
+API ..> CPT : IHabilitation
+
+' ---------- Dépendances entre composants métier ----------
+RES ..> TAR : ITarification
+RES ..> CPT : IAbonnementQuery
+RES ..> PAY : IPaiement
+RES ..> NOT : IEvenements\nReservationConfirmee, ReservationAnnulee
+FAC ..> RES : IConsommationMensuelle\n(P1 — couplage par la base corrigé)
+FAC ..> TAR : ITarification
+FAC ..> NOT : IEvenements\nFactureEmise
+ATL ..> NOT : IEvenements\nInscriptionConfirmee
+TAR ..> CPT : IAbonnementQuery
+
+' ---------- Métier → données (inversion de dépendance) ----------
+RES ..> REPO
+FAC ..> REPO
+ATL ..> REPO
+CPT ..> REPO
+TAR ..> REPO
+REPO ..> DB
+
+' ---------- Adaptateurs → extérieur ----------
+PAY ..> PSP : HTTPS, jeton
+NOT ..> MAIL : SMTP / API
+
+legend bottom left
+  Flèche pointillée = dépendance, étiquetée par l'interface requise.
+  Aucune flèche ne remonte : c'est le critère de validité du découpage.
+  Facturation ne lit jamais les tables de Réservation : elle passe par IConsommationMensuelle.
+endlegend
+
+@enduml
